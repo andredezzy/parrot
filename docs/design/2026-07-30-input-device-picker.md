@@ -26,9 +26,11 @@ a stable string) and resolved to an id for every recording.
   node reports the format of whichever device it is bound to. A throw is logged
   and the recording proceeds on the system default.
 - `MenuBarController` — an `Input` submenu, rebuilt in `menuWillOpen`:
-  `Automatic (follow system)` plus one row per device, checkmark on the active
-  one. Selecting a row only writes the preference; the next recording resolves
-  it, so there is nothing to notify.
+  `Same as System` plus one row per device, checkmark on the active one.
+  Selecting a row only writes the preference; the next recording resolves it,
+  so there is nothing to notify. The label follows the convention used by
+  conferencing apps (Zoom, Slack, Teams); Apple's own Dictation picker says
+  plain `Default`, which reads ambiguously beside real device names.
 
 ## Data flow
 
