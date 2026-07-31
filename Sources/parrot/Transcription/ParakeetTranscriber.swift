@@ -34,6 +34,12 @@ actor ParakeetTranscriber: Transcriber {
         if manager == nil { try await warmUp() }
         guard let manager else { throw TranscriberError.notLoaded }
 
+        // Shorter than the engine's own minimum it throws instead of returning
+        // nothing, and a tap on the hotkey is silence rather than a failure.
+        let minimum = ASRConstants.minimumRequiredSamples(
+            forSampleRate: Int(AudioCapture.targetSampleRate))
+        guard audio.count >= minimum else { return "" }
+
         // Dictation hands over one finished utterance at a time, so the decoder
         // starts clean rather than continuing the previous phrase's state.
         var state = try TdtDecoderState()
