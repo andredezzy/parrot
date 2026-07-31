@@ -302,3 +302,54 @@ longer transcribed every technical term correctly, including a spoken list of
 `pull request, deploy, back-end, front-end, underrated, overrated`. Utterances
 under ~4 s are where the errors live, because the sentence carries too little
 structure to disambiguate them.
+
+## Follow-up: a second engine (measured, shipped as a choice)
+
+Parakeet TDT 0.6b v3 (CoreML, via FluidAudio) on the same eight recordings,
+against `large-v3-turbo`, same ground truth, same word-level scoring:
+
+| sample | turbo | parakeet | |
+|---|---|---|---|
+| 02 `Let me check the pull request` | 1 error (`share`) | 0 | parakeet |
+| 04 `pull requests` at 0.7 input gain | 3 | 1 | parakeet |
+| 05 `backend` | 1 (`back-end`) | 0 | parakeet |
+| 06 `Yes` + `Sim` in one utterance | 1 (`Sin`) | 0 | parakeet |
+| 07 long sentence, pt | 0 | 2 | turbo |
+| 08 long sentence, en | 0 | 4 | turbo |
+| 09 spoken list of terms | 0 | 4 | turbo |
+| **total** | **10 / 92 — 89.1%** | **14 / 92 — 84.8%** | |
+
+Turbo wins in aggregate. The distribution is the finding: Parakeet wins every
+short utterance carrying an English technical term and loses every long
+sentence, at 0.07-0.11 s per utterance against 0.6-2.5 s.
+
+Three things it does with no configuration that seven measured mechanisms
+failed to do: `backend` unhyphenated, `pull requests` intact, and `Yes, sim` —
+both languages in one utterance, which the language-detection experiments above
+concluded was unreachable.
+
+Two traps worth naming. `UnifiedAsrManager` silently downloads
+`parakeet-unified-en-0.6b`, an English-only build: measured against Portuguese
+it produces `Bonjetut Puraki` for `Bom dia, tudo certo por aqui`, which reads
+like a bad multilingual model rather than the wrong model. And its `language:`
+parameter filters by *script*, so it cannot separate two Latin-script languages.
+
+Shipped as a registry entry rather than a default or an automatic router: which
+side of that trade matters depends on how a person dictates, and the corpus that
+measured it is one speaker.
+
+### Input gain, measured across three points
+
+Same phrase, same microphone, differing only in the analog input gain CoreAudio
+exposes as `kAudioDevicePropertyVolumeScalar`:
+
+| gain | peak | clipped samples | 1.5-3.5 kHz energy | result |
+|---|---|---|---|---|
+| 0.133 (as found) | 0.083 | 0 | baseline | `revisá-los por request` |
+| 0.700 | 0.375 | 0 | +11.6 dB | parakeet: `pull requests` correct |
+| 0.900 | 1.000 | 566 | +14.0 dB | `o recurso`; one dictation transcribed empty |
+
+The 0.9 point has more consonant-band energy and transcribes worse: the extra
+energy is clipping distortion, not speech. This is the same reason digital
+normalisation did nothing — level is not information. A MacBook's built-in
+microphone defaulting to 13% gain is worth checking before blaming the model.
