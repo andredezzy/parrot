@@ -204,3 +204,55 @@ Everything needed is committed next to this file, on branch
 
 
 Each experiment takes about 40 s against the corpus.
+
+## Follow-up: rolling audio context (measured, rejected)
+
+Whisper conditions later windows on earlier text *within one audio stream*, and
+that path works where the external `promptTokens` API does not. Splicing the
+previous utterance's audio in front of the current one therefore looked like a
+way to buy context with no user maintenance and no risk of propagating a wrong
+transcription — it conditions on what was actually said, not on what was
+previously written.
+
+Trimming is clean: with 11.20 s of context, segments came back at 0–3, 3–6,
+6–11 and **11–14.5 s**, so filtering by segment start recovers exactly the new
+utterance. Cost was +0.34 s.
+
+It still made the corpus worse:
+
+| | errors / 84 words | accuracy |
+|---|---|---|
+| each utterance alone | 7 | **91.7%** |
+| preceded by the previous utterance | 18 | 78.6% |
+
+Two utterances improved (`Yes. Sing.` → `Yes. Sim.`, and `revisá-los` →
+`revisar os`). One regressed catastrophically: a Portuguese utterance preceded by
+English context came out **translated into English** — 13 of the 18 errors.
+
+The first, optimistic reading of this mechanism came from a rigged test: the
+context audio used happened to contain the exact terms the target utterance was
+getting wrong. Real rolling context is the *previous* utterance, which does not
+contain the next one's vocabulary, so the gain evaporates and only the risk
+remains.
+
+## The structural finding
+
+Five independent mechanisms were measured, and every one of them fails the same
+way:
+
+| mechanism | observed failure |
+|---|---|
+| text prompt | empties the output, or translates |
+| rolling audio context | translates |
+| language detection | translates |
+| larger model (`large-v3`) | translates (it obeys the pinned token) |
+| smaller models (`small`, `base`) | translate |
+
+Anything that tells Whisper more about what to expect also gives it a way to be
+wrong about the language. The shipped configuration works *because* turbo, with a
+pinned language and no context, has nothing to be dragged by — its robustness is
+the absence of context, not the presence of quality.
+
+This is not a vocabulary problem. It is a language-identity problem, and none of
+the available mechanisms separates "knowing which words to expect" from
+"deciding which language to write in".
