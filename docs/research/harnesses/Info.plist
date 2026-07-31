@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>local.appletest</string>
+  <key>CFBundleName</key><string>appletest</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Measuring on-device transcription quality.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Not used; files only.</string>
+</dict>
+</plist>
