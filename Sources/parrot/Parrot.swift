@@ -45,23 +45,18 @@ struct Run: ParsableCommand {
             }
         }
 
-        let chosenModel: TranscriptionModel
-        if let id = model {
-            guard let m = ModelRegistry.find(id) else {
+        let models = ModelStore()
+        guard let chosenModel = models.resolved(flag: model) else {
+            if let id = model {
                 FileHandle.standardError.write(Data("unknown model: \(id)\n".utf8))
                 FileHandle.standardError.write(Data("run `parrot models list` to see options.\n".utf8))
                 throw ExitCode(1)
             }
-            chosenModel = m
-        } else {
-            guard let m = ModelRegistry.recommended() else {
-                FileHandle.standardError.write(Data("no models registered\n".utf8))
-                throw ExitCode(1)
-            }
-            chosenModel = m
+            FileHandle.standardError.write(Data("no models registered\n".utf8))
+            throw ExitCode(1)
         }
 
-        let transcriber = WhisperKitTranscriber(model: chosenModel)
+        let transcriber = ActiveTranscriber(model: chosenModel)
         let warmupSemaphore = DispatchSemaphore(value: 0)
         var warmupError: Error?
         Task.detached {
@@ -78,6 +73,14 @@ struct Run: ParsableCommand {
             throw ExitCode(1)
         }
 
+        // Whatever an earlier run left behind is dead weight now that this model
+        // is loaded — including models a crash or an older version stranded.
+        let reclaimed = ModelWeights.purge(keeping: chosenModel)
+        if reclaimed > 0 {
+            FileHandle.standardError.write(Data(
+                "freed \(ModelWeights.describe(bytes: reclaimed)) of unused models\n".utf8))
+        }
+
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
 
@@ -88,7 +91,23 @@ struct Run: ParsableCommand {
         if let overlay {
             capture.onLevel = { level in overlay.pushLevel(level) }
         }
-        let menuBar = MainActor.assumeIsolated { MenuBarController(modelID: chosenModel.id) }
+        let menuBar = MainActor.assumeIsolated { MenuBarController(model: chosenModel) }
+        MainActor.assumeIsolated {
+            menuBar.onModel = { [weak menuBar] next in
+                Task {
+                    do {
+                        try await transcriber.use(next)
+                        // Only now: a model that failed to load is not what the
+                        // daemon should come back as after a restart.
+                        models.selectedID = next.id
+                        await MainActor.run { menuBar?.setModel(next) }
+                    } catch {
+                        FileHandle.standardError.write(Data("switch to \(next.id) failed: \(error)\n".utf8))
+                        await MainActor.run { menuBar?.setModelFailed(next) }
+                    }
+                }
+            }
+        }
 
         do {
             try monitor.start { event in
