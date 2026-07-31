@@ -256,3 +256,49 @@ the absence of context, not the presence of quality.
 This is not a vocabulary problem. It is a language-identity problem, and none of
 the available mechanisms separates "knowing which words to expect" from
 "deciding which language to write in".
+
+## Follow-up: a user-maintained word list (measured, declined)
+
+Two shapes were considered once a maintained list was on the table.
+
+**Fuzzy matching against the user's vocabulary.** The appeal: the user lists the
+words they actually say ("pull requests", "backend") once, and phonetically close
+mis-hearings snap to them, so the list is keyed to the user's vocabulary rather
+than to the model's ever-changing mistakes. Measured against the real errors from
+this session on one side, and ordinary Portuguese on the other:
+
+| similarity threshold | errors fixed | false positives | what it corrupted |
+|---|---|---|---|
+| 0.70 | 3/5 | 2/10 | `comitê`→`commit`, `merece`→`merge` |
+| 0.74 | 3/5 | 1/10 | `comitê`→`commit` |
+| 0.78 | 1/5 | 1/10 | `comitê`→`commit` |
+| 0.82 | 0/5 | 1/10 | `comitê`→`commit` |
+| 0.86 | 0/5 | 0/10 | — |
+
+There is no operating point. Where it fixes anything it also rewrites common
+Portuguese words, because `comitê`/`commit` and `merece`/`merge` genuinely are
+close. Phonetic similarity cannot tell "an English technical term the user spoke"
+from "a Portuguese word that sounds like one", and corrupting correct text is the
+one outcome ruled out from the start.
+
+**Exact replacement.** Safe by construction — it touches only the literal strings
+listed, so no calibration and no false positives. Three entries would have covered
+every mis-hearing observed on the shipped configuration (`por request`,
+`por requestes`, `back-end`). Declined anyway, and correctly: it repairs
+consistent mis-hearings in the output, it does not bias recognition, so it carries
+maintenance without addressing the actual problem. A mechanism that does not pay
+for its own upkeep should not exist.
+
+## Where this leaves the goal
+
+Confident mixed-language dictation is not achievable today with any mechanism
+reachable from WhisperKit. Eight were measured: text prompt, rolling audio
+context, language detection, larger model, smaller models, input gain,
+timestamp suppression, and a maintained word list in two shapes. The shipped
+configuration is the measured optimum.
+
+What does work, reproducibly and with no code: length. Utterances of 11 s and
+longer transcribed every technical term correctly, including a spoken list of
+`pull request, deploy, back-end, front-end, underrated, overrated`. Utterances
+under ~4 s are where the errors live, because the sentence carries too little
+structure to disambiguate them.
