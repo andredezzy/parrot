@@ -55,10 +55,7 @@ actor WhisperKitTranscriber: Transcriber {
         if pipeline == nil { try await warmUp() }
         guard let pipeline else { throw TranscriberError.notLoaded }
 
-        // Without this WhisperKit falls back to Constants.defaultLanguageCode ("en")
-        // and tells a multilingual model the audio is English, whatever was said.
-        let options = DecodingOptions(detectLanguage: true)
-        let results = try await pipeline.transcribe(audioArray: audio, decodeOptions: options)
+        let results = try await pipeline.transcribe(audioArray: audio)
         let raw = results.map(\.text).joined(separator: " ")
         return Self.sanitize(raw)
     }
