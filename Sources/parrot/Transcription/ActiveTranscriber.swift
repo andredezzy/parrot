@@ -31,20 +31,18 @@ actor ActiveTranscriber {
     }
 
     /// Loads `next` before dropping the current engine, so a download that fails
-    /// leaves the user dictating with what they already had.
-    func use(_ next: TranscriptionModel) async throws {
-        guard next.id != model.id else { return }
+    /// leaves the user dictating with what they already had. Returns the model
+    /// that was replaced, which is the one worth keeping on disk.
+    @discardableResult
+    func use(_ next: TranscriptionModel) async throws -> TranscriptionModel? {
+        guard next.id != model.id else { return nil }
         let incoming = Self.make(next)
         try await incoming.warmUp()
 
+        let outgoing = model
         await transcriber.unload()
         transcriber = incoming
         model = next
-
-        let reclaimed = ModelWeights.purge(keeping: next)
-        if reclaimed > 0 {
-            FileHandle.standardError.write(Data(
-                "freed \(ModelWeights.describe(bytes: reclaimed)) of unused models\n".utf8))
-        }
+        return outgoing
     }
 }

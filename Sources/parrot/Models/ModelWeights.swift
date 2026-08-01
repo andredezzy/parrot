@@ -27,34 +27,39 @@ enum ModelWeights {
         return FileManager.default.fileExists(atPath: directory.path(percentEncoded: false))
     }
 
-    /// Deletes every other registered model's weights. Called after a switch
-    /// succeeds, so a failed download never costs the user the model they had.
+    /// Deletes the weights of every registered model except the ones named.
+    /// Called after a switch succeeds, so a failed download never costs the
+    /// user the model they had. The model switched away from is kept too:
+    /// otherwise going back and forth between two engines re-downloads a
+    /// gigabyte each way.
     @discardableResult
-    static func purge(keeping active: TranscriptionModel) -> Int64 {
+    static func purge(keeping wanted: [TranscriptionModel]) -> Int64 {
+        let keepIDs = Set(wanted.map(\.id))
         var reclaimed: Int64 = 0
-        for model in ModelRegistry.shared where model.id != active.id {
+        for model in ModelRegistry.shared where !keepIDs.contains(model.id) {
             guard let directory = directory(of: model),
                   FileManager.default.fileExists(atPath: directory.path(percentEncoded: false))
             else { continue }
             reclaimed += bytes(at: directory)
             try? FileManager.default.removeItem(at: directory)
         }
-        return reclaimed + sweep(keeping: active)
+        return reclaimed + sweep(keeping: wanted)
     }
 
     /// WhisperKit keeps tokenizers and download caches beside the weights, under
     /// folders the per-model delete above never names. A folder survives only
-    /// when the active model's engine id contains its name; guessing wrong costs
-    /// a few MB of re-download, never a broken model.
-    private static func sweep(keeping active: TranscriptionModel) -> Int64 {
+    /// when a kept model's engine id contains its name; guessing wrong costs a
+    /// few MB of re-download, never a broken model.
+    private static func sweep(keeping wanted: [TranscriptionModel]) -> Int64 {
         let roots = ["models/openai", "models/argmaxinc/whisperkit-coreml"]
-        let keep = active.engine == .whisperKit ? (active.engineID ?? "") : ""
+        let keep = wanted.filter { $0.engine == .whisperKit }.compactMap(\.engineID)
         var reclaimed: Int64 = 0
         for root in roots {
             let directory = whisperKitBase.appending(path: root)
             let children = (try? FileManager.default.contentsOfDirectory(
                 at: directory, includingPropertiesForKeys: nil)) ?? []
-            for child in children where !keep.contains(child.lastPathComponent) {
+            for child in children
+            where !keep.contains(where: { $0.contains(child.lastPathComponent) }) {
                 reclaimed += bytes(at: child)
                 try? FileManager.default.removeItem(at: child)
             }
