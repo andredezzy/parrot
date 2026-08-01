@@ -158,14 +158,17 @@ enum Installed {
 
     /// A no-op when the daemon is not registered, which is how anyone running
     /// parrot from a terminal uses it.
+    ///
+    /// `kickstart -k` rather than bootout followed by bootstrap. The update runs
+    /// inside the daemon, so a bootout kills the process that still has to issue
+    /// the bootstrap: the service goes away and never comes back. kickstart is
+    /// one call that launchd carries out on its own, and it does not care that
+    /// the caller dies partway through.
     static func restartDaemon() {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let plist = home.appending(path: "Library/LaunchAgents/\(Install.label).plist")
         guard FileManager.default.fileExists(atPath: plist.path(percentEncoded: false)) else { return }
-        _ = try? shell("/bin/launchctl", ["bootout", "gui/\(getuid())/\(Install.label)"])
-        Thread.sleep(forTimeInterval: 1)
-        _ = try? shell("/bin/launchctl", ["bootstrap", "gui/\(getuid())",
-                                          plist.path(percentEncoded: false)])
+        _ = try? shell("/bin/launchctl", ["kickstart", "-k", "gui/\(getuid())/\(Install.label)"])
     }
 }
 
