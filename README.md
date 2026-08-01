@@ -2,17 +2,25 @@
 
 A minimal macOS dictation daemon. Push-to-talk, on-device transcription, text inserted at the cursor.
 
+> A fork of [digimata/parrot](https://github.com/digimata/parrot) for people who
+> do not dictate only in English. Adds input gain correction, a microphone
+> picker, a model switcher with Parakeet as the default, and per-language
+> dictation examples — each measured on 32 real recordings rather than argued.
+> [What changed, with numbers](https://github.com/andredezzy/parrot/releases/latest).
+
 ## Install
 
 ```sh
-curl -fsSL https://digimata.github.io/parrot/install.sh | sh
+curl -fsSL https://andredezzy.github.io/parrot/install.sh | sh
 parrot setup                       # grants mic + accessibility, downloads the model
 parrot install --launch-at-login   # optional — runs in the background on login
 ```
 
 **Requires:** macOS 14+ on Apple Silicon (M1 or newer). Transcription runs on the Apple Neural Engine via CoreML — so the installer refuses to run on Intel.
 
-The installer drops the binary in `/usr/local/bin/parrot`. Builds are unsigned for now, so the installer strips the quarantine xattr — once you've inspected the script you'll see exactly what it does.
+The installer drops the binary in `/usr/local/bin/parrot`. Builds are unsigned, so the installer strips the quarantine xattr — once you've inspected the script you'll see exactly what it does.
+
+macOS re-asks for Accessibility whenever a binary's signature changes, so each release means granting it again. `scripts/install-local.sh` builds from source and signs with a stable per-machine identity, which keeps the grant across updates.
 
 ## How to use
 
@@ -35,10 +43,21 @@ parrot install --uninstall             # remove the LaunchAgent
 parrot doctor                          # check permissions + fn key setting
 parrot models list                     # list available models
 parrot models download <id>            # pre-download a model
-parrot --model whisper-large-v3-turbo  # bigger, multilingual, slower first-run
+parrot --model whisper-large-v3-turbo-compressed  # better on technical terms, ~10x slower
 parrot --hotkey right-option           # change the push-to-talk key
 parrot --no-overlay                    # disable the bottom-of-screen pill
 ```
+
+The menu bar carries the rest, because they are decisions you change while
+using it rather than when launching it:
+
+- **Input** — which microphone to record from. Recording raises a turned-down
+  one to a measured optimum and puts your value back on stop.
+- **Model** — switch engines without restarting. The model in use and the one
+  you switched away from stay on disk; everything else is deleted.
+- **Edit dictation examples…** — one sentence per language, in your own words,
+  handed to Whisper before it decodes. Ignored by Parakeet, which cannot read
+  text. Worth 39 points of technical-term recall; the file explains the format.
 
 ## Stack
 
