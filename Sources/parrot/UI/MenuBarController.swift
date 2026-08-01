@@ -37,6 +37,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         modelLabel.isEnabled = false
         menu.addItem(modelLabel)
 
+        versionItem = NSMenuItem(title: "parrot v\(parrotVersion)",
+                                 action: #selector(updateClicked), keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
+
         inputItem = NSMenuItem(title: "Input", action: nil, keyEquivalent: "")
         let inputMenu = NSMenu()
         inputMenu.autoenablesItems = false
@@ -54,11 +59,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             action: #selector(editDictationExamples),
             keyEquivalent: "")
         menu.addItem(example)
-
-        versionItem = NSMenuItem(title: "parrot v\(parrotVersion)",
-                                 action: #selector(updateClicked), keyEquivalent: "")
-        versionItem.isEnabled = false
-        menu.addItem(versionItem)
 
         menu.addItem(.separator())
 
