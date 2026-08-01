@@ -39,6 +39,9 @@ final class AudioCapture {
     private var targetFormat: AVAudioFormat?
     private var samples: [Float] = []
     private var isRecording = false
+    /// Set while a recording holds the microphone's gain up; the pair is what
+    /// `stop()` needs to put the user's setting back.
+    private var borrowedGain: (device: AudioDeviceID, previous: Float32)?
     private let lock = NSLock()
 
     /// Called for every audio buffer with the buffer's RMS level (0…~1).
@@ -86,6 +89,9 @@ final class AudioCapture {
         try check(AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice,
                                        kAudioUnitScope_Global, 0,
                                        &resolved, UInt32(MemoryLayout<AudioDeviceID>.size)))
+        if let previous = InputGain.raise(resolved) {
+            borrowedGain = (resolved, previous)
+        }
 
         // Read what the device actually produces, then ask AUHAL only for a
         // float layout at that same rate — the one conversion it will do.
@@ -151,6 +157,10 @@ final class AudioCapture {
         if let unit {
             AudioOutputUnitStop(unit)
             AudioUnitUninitialize(unit)
+        }
+        if let borrowed = borrowedGain {
+            InputGain.restore(borrowed.device, to: borrowed.previous)
+            borrowedGain = nil
         }
         // Dispose so the device is released; a Bluetooth headset keeps its
         // microphone link open otherwise.
