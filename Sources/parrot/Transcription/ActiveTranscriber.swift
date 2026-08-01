@@ -22,8 +22,8 @@ actor ActiveTranscriber {
         }
     }
 
-    func warmUp() async throws {
-        try await transcriber.warmUp()
+    func warmUp(onProgress: (@Sendable (Double) -> Void)? = nil) async throws {
+        try await transcriber.warmUp(onProgress: onProgress)
     }
 
     func transcribe(_ audio: [Float]) async throws -> String {
@@ -34,10 +34,11 @@ actor ActiveTranscriber {
     /// leaves the user dictating with what they already had. Returns the model
     /// that was replaced, which is the one worth keeping on disk.
     @discardableResult
-    func use(_ next: TranscriptionModel) async throws -> TranscriptionModel? {
+    func use(_ next: TranscriptionModel,
+             onProgress: (@Sendable (Double) -> Void)? = nil) async throws -> TranscriptionModel? {
         guard next.id != model.id else { return nil }
         let incoming = Self.make(next)
-        try await incoming.warmUp()
+        try await incoming.warmUp(onProgress: onProgress)
 
         let outgoing = model
         await transcriber.unload()

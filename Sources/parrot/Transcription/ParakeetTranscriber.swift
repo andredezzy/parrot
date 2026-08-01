@@ -17,13 +17,15 @@ actor ParakeetTranscriber: Transcriber {
         self.model = model
     }
 
-    func warmUp() async throws {
+    func warmUp(onProgress: (@Sendable (Double) -> Void)? = nil) async throws {
         if manager != nil { return }
         guard model.engineID != nil, let directory = ModelWeights.directory(of: model) else {
             throw TranscriberError.missingEngineID
         }
         FileHandle.standardError.write(Data("loading \(model.id)...\n".utf8))
-        let weights = try await AsrModels.downloadAndLoad(to: directory, version: .v3)
+        let weights = try await AsrModels.downloadAndLoad(
+            to: directory, version: .v3,
+            progressHandler: { progress in onProgress?(progress.fractionCompleted) })
         let manager = AsrManager(config: .default)
         try await manager.loadModels(weights)
         self.manager = manager
