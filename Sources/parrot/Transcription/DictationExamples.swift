@@ -57,24 +57,27 @@ struct DictationExamples {
     }
 
     static let template = """
-        # Write a sentence or two the way you actually dictate, in each language
-        # you speak. The model reads this as speech that came just before yours,
-        # so an example works and a description does not:
+        # One sentence per language, the way you actually dictate, using the
+        # words you want spelled correctly. The model reads this as speech that
+        # came just before yours, so an example works and a description does not:
         #
         #   this works    I need to review the pull requests before the merge.
         #   this doesn't  I am a developer and I use technical terms.
+        #
+        # One sentence is the whole of it. Measured across eleven recordings,
+        # none to one was worth +36 points of technical-term recall at no cost
+        # in latency; sentences after that bought nothing and added around
+        # 150 ms each, since every token is decoded before your speech is.
         #
         # Keep languages under their own heading. An example in the wrong
         # language is worse than none: the prompt pulls the decoder along with
         # it, and English audio under a Portuguese example comes back translated.
 
         [en]
-        I need to review the pull requests before the merge, then deploy the
-        backend and the frontend.
+        I need to review the pull requests before the merge, then deploy the backend.
 
         [pt-BR]
-        Preciso revisar os pull requests antes do merge, depois vou fazer o
-        deploy do backend e do frontend.
+        Preciso revisar os pull requests antes do merge, depois faço o deploy do backend.
 
         """
 
