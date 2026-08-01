@@ -69,20 +69,24 @@ actor WhisperKitTranscriber: Transcriber {
         // The language is resolved first and then pinned. Left to decide for
         // itself mid-decode, Whisper translates rather than transcribes —
         // Portuguese speech comes back as English sentences — and an example in
-        // the wrong language makes that worse rather than better. Detection
-        // costs a second encoder pass, so it is skipped when the examples file
-        // names only one language and there is nothing to choose between.
+        // the wrong language makes that worse rather than better.
+        //
+        // Detection is the last resort: it costs a second encoder pass, it is
+        // unsupported on single-language models, and both of the cheaper
+        // answers are exact rather than guesses.
         let examples = DictationExamples()
-        let language: String
-        if let sole = examples.soleLanguage {
+        let language: String?
+        if model.languages.count == 1, model.languages[0] != "multi" {
+            language = model.languages[0]
+        } else if let sole = examples.soleLanguage {
             language = sole
         } else {
-            language = try await pipeline.detectLangauge(audioArray: audio).language
+            language = try? await pipeline.detectLangauge(audioArray: audio).language
         }
         let results = try await pipeline.transcribe(
             audioArray: audio,
             decodeOptions: DecodingOptions(language: language,
-                                           promptTokens: promptTokens(examples, language)))
+                                           promptTokens: language.flatMap { promptTokens(examples, $0) }))
         let raw = results.map(\.text).joined(separator: " ")
         return Self.sanitize(raw)
     }
