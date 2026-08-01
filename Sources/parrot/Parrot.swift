@@ -8,7 +8,8 @@ struct Parrot: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "parrot",
         abstract: "Minimal macOS dictation daemon. Hold Fn, speak, release.",
-        subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self],
+        version: parrotVersion,
+        subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self, Update.self],
         defaultSubcommand: Run.self
     )
 }
@@ -114,6 +115,29 @@ struct Run: ParsableCommand {
                     } catch {
                         FileHandle.standardError.write(Data("switch to \(next.id) failed: \(error)\n".utf8))
                         await MainActor.run { menuBar?.setModelFailed(next) }
+                    }
+                }
+            }
+        }
+
+        // Ask GitHub once at startup rather than on a timer: a dictation daemon
+        // that phones home while you work is worse than one you update a day late.
+        Task.detached {
+            guard let latest = try? Release.latest(), latest.tag != "v\(parrotVersion)" else { return }
+            await MainActor.run {
+                menuBar.offerUpdate(latest.tag)
+                menuBar.onUpdate = {
+                    Task.detached {
+                        do {
+                            let staged = try Release.download(latest)
+                            if let identity = Signing.localIdentity() {
+                                try Signing.sign(staged, as: identity)
+                            }
+                            try Installed.replace(with: staged)
+                            Installed.restartDaemon()
+                        } catch {
+                            FileHandle.standardError.write(Data("update failed: \(error)\n".utf8))
+                        }
                     }
                 }
             }

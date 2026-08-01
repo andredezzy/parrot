@@ -7,6 +7,9 @@ import AppKit
 final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let modelLabel: NSMenuItem
+    /// Hidden until a check finds a newer release, so the menu says nothing
+    /// when there is nothing to say.
+    private let updateItem: NSMenuItem
     private let stateLabel: NSMenuItem
     private let inputItem: NSMenuItem
     private let modelItem: NSMenuItem
@@ -15,6 +18,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// Set after construction: switching needs the daemon, and the daemon needs
     /// the controller it reports back to.
     var onModel: ((TranscriptionModel) -> Void)?
+    var onUpdate: (() -> Void)?
 
     init(model: TranscriptionModel, devices: InputDeviceStore) {
         self.model = model
@@ -50,6 +54,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: "")
         menu.addItem(example)
 
+        updateItem = NSMenuItem(title: "", action: #selector(updateClicked), keyEquivalent: "")
+        updateItem.isHidden = true
+        menu.addItem(updateItem)
+
         menu.addItem(.separator())
 
         let quit = NSMenuItem(
@@ -60,6 +68,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         super.init()
 
         example.target = self
+        updateItem.target = self
         quit.target = self
         menu.addItem(quit)
 
@@ -69,6 +78,19 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         statusItem.menu = menu
         configureButton(recording: false)
+    }
+
+    /// Called once at startup when a newer release exists. Clicking runs the
+    /// same code path as `parrot update` and the daemon comes back on its own.
+    func offerUpdate(_ tag: String) {
+        updateItem.title = "Update to \(tag)"
+        updateItem.isHidden = false
+    }
+
+    @objc private func updateClicked() {
+        updateItem.title = "Updating…"
+        updateItem.isEnabled = false
+        onUpdate?()
     }
 
     /// Creates the file on first use so the format is explained where it is

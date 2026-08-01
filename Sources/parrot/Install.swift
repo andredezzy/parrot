@@ -34,7 +34,7 @@ struct Install: ParsableCommand {
 
     // MARK: -
 
-    private static let label = "com.digimata.parrot"
+    static let label = "com.digimata.parrot"
 
     private var plistURL: URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
