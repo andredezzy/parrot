@@ -92,6 +92,5 @@ echo
 echo "  parrot setup                       # microphone + accessibility, downloads the model"
 echo "  parrot install --launch-at-login   # optional — runs in the background on login"
 echo
-dim "Speaking a language other than English? Open the menu bar item and pick a"
-dim "multilingual model — the default is English-only and scores near zero on"
-dim "anything else."
+dim "The default model is Parakeet TDT v3: multilingual, 461 MB, and the fastest"
+dim "of the five measured here. Whisper is a menu item away if you want it."
