@@ -44,6 +44,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         modelItem.submenu = modelMenu
         menu.addItem(modelItem)
 
+        let example = NSMenuItem(
+            title: "Edit dictation example…",
+            action: #selector(editDictationExample),
+            keyEquivalent: "")
+        menu.addItem(example)
+
         menu.addItem(.separator())
 
         let quit = NSMenuItem(
@@ -53,6 +59,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         )
         super.init()
 
+        example.target = self
         quit.target = self
         menu.addItem(quit)
 
@@ -62,6 +69,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         statusItem.menu = menu
         configureButton(recording: false)
+    }
+
+    /// Creates the file on first use so the format is explained where it is
+    /// edited, then hands it to whatever opens .txt.
+    @objc private func editDictationExample() {
+        do {
+            try DictationExample.ensureFileExists()
+            NSWorkspace.shared.open(DictationExample.file)
+        } catch {
+            FileHandle.standardError.write(Data("could not open dictation example: \(error)\n".utf8))
+        }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
