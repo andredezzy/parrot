@@ -7,9 +7,10 @@ import AppKit
 final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let modelLabel: NSMenuItem
-    /// Hidden until a check finds a newer release, so the menu says nothing
-    /// when there is nothing to say.
-    private let updateItem: NSMenuItem
+    /// Shows the running version, and turns into the update offer when a check
+    /// finds a newer release. One line that always says something true beats a
+    /// version label plus a second item that is blank most of the time.
+    private let versionItem: NSMenuItem
     private let stateLabel: NSMenuItem
     private let inputItem: NSMenuItem
     private let modelItem: NSMenuItem
@@ -54,9 +55,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: "")
         menu.addItem(example)
 
-        updateItem = NSMenuItem(title: "", action: #selector(updateClicked), keyEquivalent: "")
-        updateItem.isHidden = true
-        menu.addItem(updateItem)
+        versionItem = NSMenuItem(title: "parrot v\(parrotVersion)",
+                                 action: #selector(updateClicked), keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
 
         menu.addItem(.separator())
 
@@ -68,7 +70,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         super.init()
 
         example.target = self
-        updateItem.target = self
+        versionItem.target = self
         quit.target = self
         menu.addItem(quit)
 
@@ -83,13 +85,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// Called once at startup when a newer release exists. Clicking runs the
     /// same code path as `parrot update` and the daemon comes back on its own.
     func offerUpdate(_ tag: String) {
-        updateItem.title = "Update to \(tag)"
-        updateItem.isHidden = false
+        versionItem.title = "Update to \(tag)"
+        versionItem.isEnabled = true
     }
 
     @objc private func updateClicked() {
-        updateItem.title = "Updating…"
-        updateItem.isEnabled = false
+        versionItem.title = "Updating…"
+        versionItem.isEnabled = false
         onUpdate?()
     }
 
