@@ -15,6 +15,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let inputItem: NSMenuItem
     private let modelItem: NSMenuItem
     private var model: TranscriptionModel
+    /// The model being switched to. Set on click so the menu answers the click
+    /// rather than the download, which can take minutes.
+    private var pending: TranscriptionModel?
     private let devices: InputDeviceStore
     /// Set after construction: switching needs the daemon, and the daemon needs
     /// the controller it reports back to.
@@ -121,16 +124,19 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         modelSubmenu.removeAllItems()
         for candidate in ModelRegistry.shared {
             let active = candidate.id == model.id
+            let arriving = candidate.id == pending?.id
             let item = NSMenuItem(
                 title: "\(candidate.displayName) · \(candidate.sizeMB) MB",
                 action: #selector(modelSelected),
                 keyEquivalent: "")
             item.target = self
             item.representedObject = candidate.id
-            item.state = active ? .on : .off
-            // Only the model in use is kept on disk, so every other row means a
-            // download before the next dictation works.
-            item.isEnabled = !active
+            // A dash rather than a tick while it arrives: the choice is taken,
+            // the model is not ready, and pretending otherwise is what made the
+            // menu look like it ignored the click.
+            item.state = arriving ? .mixed : (active ? .on : .off)
+            // One switch at a time, and the model in use is already here.
+            item.isEnabled = pending == nil && !active
             modelSubmenu.addItem(item)
         }
     }
@@ -155,16 +161,28 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         guard let id = sender.representedObject as? String,
               let chosen = ModelRegistry.find(id), chosen.id != model.id
         else { return }
-        modelLabel.title = "model: \(model.id) → \(chosen.id)…"
+        pending = chosen
+        modelLabel.title = "loading \(chosen.id)…"
         onModel?(chosen)
+    }
+
+    /// Download fraction, which is the only part either engine reports. Loading
+    /// afterwards shows as the same line without a number.
+    func setSwitchProgress(_ fraction: Double) {
+        guard let pending else { return }
+        modelLabel.title = fraction < 1
+            ? String(format: "downloading %@… %.0f%%", pending.id, fraction * 100)
+            : "loading \(pending.id)…"
     }
 
     func setModel(_ model: TranscriptionModel) {
         self.model = model
+        self.pending = nil
         modelLabel.title = "model: \(model.id)"
     }
 
     func setModelFailed(_ attempted: TranscriptionModel) {
+        pending = nil
         modelLabel.title = "model: \(model.id) · \(attempted.id) failed"
     }
 

@@ -105,7 +105,9 @@ struct Run: ParsableCommand {
             menuBar.onModel = { [weak menuBar] next in
                 Task {
                     do {
-                        let outgoing = try await transcriber.use(next)
+                        let outgoing = try await transcriber.use(next) { fraction in
+                            Task { @MainActor in menuBar?.setSwitchProgress(fraction) }
+                        }
                         // Only now: a model that failed to load is not what the
                         // daemon should come back as after a restart.
                         models.selectedID = next.id
