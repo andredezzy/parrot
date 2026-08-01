@@ -39,8 +39,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(modelItem)
 
         let example = NSMenuItem(
-            title: "Edit dictation example…",
-            action: #selector(editDictationExample),
+            title: "Edit dictation examples…",
+            action: #selector(editDictationExamples),
             keyEquivalent: "")
         menu.addItem(example)
 
@@ -67,10 +67,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     /// Creates the file on first use so the format is explained where it is
     /// edited, then hands it to whatever opens .txt.
-    @objc private func editDictationExample() {
+    @objc private func editDictationExamples() {
         do {
-            try DictationExample.ensureFileExists()
-            NSWorkspace.shared.open(DictationExample.file)
+            try DictationExamples.ensureFileExists()
+            NSWorkspace.shared.open(DictationExamples.file)
         } catch {
             FileHandle.standardError.write(Data("could not open dictation example: \(error)\n".utf8))
         }

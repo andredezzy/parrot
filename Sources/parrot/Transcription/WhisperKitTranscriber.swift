@@ -66,8 +66,23 @@ actor WhisperKitTranscriber: Transcriber {
         if pipeline == nil { try await warmUp() }
         guard let pipeline else { throw TranscriberError.notLoaded }
 
+        // The language is resolved first and then pinned. Left to decide for
+        // itself mid-decode, Whisper translates rather than transcribes —
+        // Portuguese speech comes back as English sentences — and an example in
+        // the wrong language makes that worse rather than better. Detection
+        // costs a second encoder pass, so it is skipped when the examples file
+        // names only one language and there is nothing to choose between.
+        let examples = DictationExamples()
+        let language: String
+        if let sole = examples.soleLanguage {
+            language = sole
+        } else {
+            language = try await pipeline.detectLangauge(audioArray: audio).language
+        }
         let results = try await pipeline.transcribe(
-            audioArray: audio, decodeOptions: DecodingOptions(promptTokens: promptTokens()))
+            audioArray: audio,
+            decodeOptions: DecodingOptions(language: language,
+                                           promptTokens: promptTokens(examples, language)))
         let raw = results.map(\.text).joined(separator: " ")
         return Self.sanitize(raw)
     }
@@ -75,10 +90,11 @@ actor WhisperKitTranscriber: Transcriber {
     /// Read per dictation so editing the file takes effect on the next phrase.
     /// Special tokens are dropped: the decoder builds its own control sequence
     /// around this text, and a stray one there desynchronises it.
-    private func promptTokens() -> [Int]? {
-        let example = DictationExample()
-        guard !example.isEmpty, let tokenizer = pipeline?.tokenizer else { return nil }
-        let tokens = tokenizer.encode(text: " " + example.text)
+    private func promptTokens(_ examples: DictationExamples, _ language: String) -> [Int]? {
+        guard let example = examples.example(for: language),
+              let tokenizer = pipeline?.tokenizer
+        else { return nil }
+        let tokens = tokenizer.encode(text: " " + example)
             .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
         return tokens.isEmpty ? nil : tokens
     }
