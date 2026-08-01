@@ -14,7 +14,7 @@ enum ModelRegistry {
             engineID: "openai_whisper-base.en",
             sizeMB: 145,
             languages: ["en"],
-            recommended: true
+            recommended: false
         ),
         TranscriptionModel(
             id: "whisper-large-v3-turbo",
@@ -50,7 +50,11 @@ enum ModelRegistry {
             engineID: "parakeet-tdt-0.6b-v3",
             sizeMB: 461,
             languages: ["multi"],
-            recommended: false
+            // Measured over 32 recordings against every other model here: best
+            // accuracy on the speaker's own language, faster than the rest by an
+            // order of magnitude, and ahead of whisper-base.en on English too
+            // while covering 24 more languages.
+            recommended: true
         ),
     ]
 
