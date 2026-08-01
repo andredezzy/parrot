@@ -400,3 +400,52 @@ The dominant remaining error is an English technical term spoken in isolation
 (`pull requests` -> `por questões`, `merge` -> `método`). It disappears when the
 same term is spoken inside a full sentence, in both engines tested. Structure
 disambiguates; nothing else measured here does.
+
+## Option C investigated: a Portuguese CTC as the rescoring judge
+
+The library's rescorer damages Portuguese because its judge declares
+`language: ["en"]`. The obvious repair is a judge that knows Portuguese. Tested
+with `jonatasgrosman/wav2vec2-large-xlsr-53-portuguese`, a character-level model
+that can score any Latin string, English terms included.
+
+**The premise holds, barely.** Scoring only the disputed span, the Portuguese
+judge prefers the correct reading in three of four samples:
+
+| sample | wrong reading | correct reading | margin |
+|---|---|---|---|
+| 04 | `por questões` 15.12 | `pull requests` 14.93 | +1.3% |
+| 04-gain70 | `por request` 26.97 | `pull requests` 24.42 | +9.4% |
+| 10-live | `por request` 15.37 | `pull requests` 14.89 | +3.1% |
+| 11-longa | `por questões` 13.95 | `pull requests` 13.98 | -0.2% |
+
+So the acoustics do carry the distinction — the earlier whole-sentence test
+missed it because normalising a twelve-character difference over a hundred and
+thirty characters buries it.
+
+**As a rescoring pass it is unusable.** Word spans from Viterbi forced
+alignment, candidate terms scored against each span, replacements gated on a
+relative margin. Sweeping that margin from 3 to 120:
+
+| margin | WER | terms |
+|---|---|---|
+| baseline (no pass) | 94.7% | 62% |
+| 3 | 25.8% | 85% |
+| 15 | 43.7% | 77% |
+| 40-95 | 71.6% | 69% |
+| 105+ | 94.7% | 62% (never fires) |
+
+The transition is a cliff, not a curve: every operating point that recovers a
+term also rewrites `eu não` as `mergeado` and `melhor` as `constraint`. Those
+pass a length-ratio gate honestly, and the judge genuinely scores them higher.
+Its own free decoding of the same windows is gibberish (`repaz tuws mos`), so at
+span granularity its scores are noise, and a 1-9% preference does not survive it.
+
+Two methodological errors made along the way, both caught by measurement: per-
+character normalisation hid the signal in the first test, and then favoured long
+terms over short words in the second, replacing most of the corpus with
+`pull requests`.
+
+**Conclusion.** A stronger judge would need something like MMS-1b — a billion
+parameters, larger than the transcription model it is meant to correct, against
+a 1 s latency budget the current pipeline meets in 0.31 s. The measured ceiling
+stands: 94.7% word accuracy, 62% technical-term recall.
