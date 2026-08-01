@@ -7,6 +7,7 @@ import Foundation
 /// a model without changing what the daemon comes back as.
 final class ModelStore {
     private static let selectionKey = "modelID"
+    private static let previousKey = "previousModelID"
 
     private let defaults: UserDefaults
 
@@ -23,6 +24,23 @@ final class ModelStore {
                 defaults.removeObject(forKey: Self.selectionKey)
             }
         }
+    }
+
+    /// The model switched away from, kept on disk so switching back does not
+    /// mean downloading it again.
+    var previousID: String? {
+        get { defaults.string(forKey: Self.previousKey) }
+        set {
+            if let newValue {
+                defaults.set(newValue, forKey: Self.previousKey)
+            } else {
+                defaults.removeObject(forKey: Self.previousKey)
+            }
+        }
+    }
+
+    var previous: TranscriptionModel? {
+        previousID.flatMap(ModelRegistry.find)
     }
 
     /// Model to start with: the flag, else the remembered choice, else the
