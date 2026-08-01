@@ -64,20 +64,22 @@ struct DictationExamples {
         #   this works    I need to review the pull requests before the merge.
         #   this doesn't  I am a developer and I use technical terms.
         #
-        # One sentence is the whole of it. Measured across eleven recordings,
-        # none to one was worth +36 points of technical-term recall at no cost
-        # in latency; sentences after that bought nothing and added around
-        # 150 ms each, since every token is decoded before your speech is.
+        # An ordinary sentence is the whole of it. Measured across eleven
+        # recordings: none to one sentence was worth +36 points of
+        # technical-term recall at no cost in latency, a second sentence bought
+        # nothing and cost 150 ms, and packing eight terms into the sentence
+        # scored the same as two. Those same eight terms written as a bare list
+        # scored what no example scores. The grammar works, not the words.
         #
         # Keep languages under their own heading. An example in the wrong
         # language is worse than none: the prompt pulls the decoder along with
         # it, and English audio under a Portuguese example comes back translated.
 
         [en]
-        I need to review the pull requests before the merge, then deploy the backend.
+        I need to review the pull requests before the merge.
 
         [pt-BR]
-        Preciso revisar os pull requests antes do merge, depois faço o deploy do backend.
+        Preciso revisar os pull requests antes do merge.
 
         """
 
