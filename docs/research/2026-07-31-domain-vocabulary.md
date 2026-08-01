@@ -449,3 +449,121 @@ terms over short words in the second, replacing most of the corpus with
 parameters, larger than the transcription model it is meant to correct, against
 a 1 s latency budget the current pipeline meets in 0.31 s. The measured ceiling
 stands: 94.7% word accuracy, 62% technical-term recall.
+
+## What actually worked: grammar, not vocabulary
+
+Every mechanism above hands the model *words* — a term list, a replacement
+table, a CTC judge scoring candidate spellings. All of them failed. The thing
+that worked hands it a *sentence*, and the difference is not a detail.
+
+### The mechanism was closed by a bug
+
+Whisper accepts an initial prompt: text the decoder is conditioned on before it
+starts, which is how the industry supplies domain context. WhisperKit exposes it
+as `promptTokens` and it returned an empty string, every time, on every version
+tried. Instrumenting the decode loop:
+
+```
+prefilledIndex=0 initialPromptIndex=25 tokens=25
+break at idx=12 isPrefill=true completed=true token=50257 '<|endoftext|>'
+```
+
+The decoder forces prompt tokens one index at a time, and the prediction it
+makes while doing so is discarded on the next iteration — but
+`isSegmentCompleted` honoured it anyway. One `<|endoftext|>` guess at token 12
+of 25 ended the segment before decoding began. Two lines fix it:
+
+```swift
+(sampleResult.completed && !isPrefill) || …
+let isFirstToken = tokenIndex == max(prefilledIndex, initialPromptIndex - 1)
+```
+
+Diagnosed here, then found already fixed upstream in
+argmaxinc/argmax-oss-swift#514, character for character. Worth noting for the
+method: the upstream `main` was never checked before the patch was written.
+
+### An example beats a description
+
+| prompt | technical terms recovered |
+|---|---|
+| `Sou desenvolvedor e falo de pull requests, merge, deploy.` | 62% |
+| `Preciso revisar os pull requests antes do merge.` | 85% |
+
+Whisper conditions on this the way it conditions on the previous window of a
+long recording. It wants a sentence it might plausibly have just heard, not a
+statement about who is speaking.
+
+### One sentence is the whole of it
+
+Eleven recordings, `large-v3-turbo-compressed`, one line per language:
+
+| examples | accuracy | terms | median | cost |
+|---|---|---|---|---|
+| none | 87.2% | 50% | 1.34 s | — |
+| one sentence | **90.8%** | 86% | 1.33 s | free |
+| two | 88.1% | 86% | 1.49 s | +150 ms |
+| four | 89.9% | 93% | 1.89 s | +550 ms |
+| eight | 89.0% | 86% | 2.41 s | +1070 ms |
+
+The first sentence carries the effect and costs nothing. Four looks best on
+terms — one occurrence out of fourteen, noise. Eight is worse on both numbers
+and twice as slow, because every prompt token is a decode step taken before the
+speech is heard.
+
+### And the vocabulary in it does not matter
+
+| single-line example | accuracy | terms |
+|---|---|---|
+| sentence with two technical terms | **90.8%** | 86% |
+| sentence with four | 89.4% | 86% |
+| sentence with eight | 89.9% | 86% |
+| **those same eight as a bare list** | **87.2%** | **50%** |
+| no example at all | 87.2% | 50% |
+
+Term recall does not move between two terms and eight. The list of the same
+eight words scores what no example scores, to the decimal.
+
+So the model is not being given vocabulary. It is being given a sample of how
+this speaker builds sentences — which is exactly why every word-list mechanism
+in this document returned nothing, and why the surviving failure is a technical
+term spoken *in isolation*, outside any sentence. There is no grammar around it
+to condition on.
+
+### Language sections are load-bearing
+
+One blob of mixed languages is unsafe in both directions:
+
+| example | pt accuracy | en accuracy |
+|---|---|---|
+| none | -1.1% | 96.4% |
+| Portuguese only | 88.4% | **25.0%** |
+| English only | -0.6% | 92.9% |
+| both, mixed | 17.7% | 92.9% |
+| by section, language detected | **92.3%** | **92.9%** |
+
+A prompt drags the decoder into its own language, so English audio under a
+Portuguese example comes back translated. Whisper left to pick for itself does
+the same, which is what puts the no-example column in the negative — the fix is
+to detect the language once and pin it, not to leave it to the decode loop.
+
+## The engines, on everything this machine recorded
+
+32 recordings, 251 s of speech, production transcribers, 11 with ground truth:
+
+| model | MB | pt accuracy | pt terms | en accuracy | median |
+|---|---|---|---|---|---|
+| parakeet-tdt-v3 | 461 | **94.7%** | 62% | 85.7% | **0.15 s** |
+| whisper-large-v3-turbo | 1620 | 91.1% | **92%** | **96.4%** | 1.69 s |
+| whisper-large-v3-turbo-compressed | 632 | 92.1% | **92%** | 92.9% | 1.72 s |
+| whisper-small.en | 488 | -3.7% | 54% | 78.6% | 1.85 s |
+| whisper-base.en | 145 | -0.5% | 15% | 78.6% | 0.74 s |
+
+Parakeet holds Portuguese accuracy and is eleven times faster; Whisper holds the
+technical vocabulary and English. Neither dominates, so both stay selectable.
+The English-only models are not usable for this speaker, and are slower than the
+multilingual turbo on top of it.
+
+Benchmarking every registered model rather than the one in use is what caught
+`whisper-base.en` — the project's recommended default — failing 100% of
+transcriptions after language pinning was added, because `detectLangauge` throws
+on a single-language model.
