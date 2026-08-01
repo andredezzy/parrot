@@ -66,9 +66,21 @@ actor WhisperKitTranscriber: Transcriber {
         if pipeline == nil { try await warmUp() }
         guard let pipeline else { throw TranscriberError.notLoaded }
 
-        let results = try await pipeline.transcribe(audioArray: audio)
+        let results = try await pipeline.transcribe(
+            audioArray: audio, decodeOptions: DecodingOptions(promptTokens: promptTokens()))
         let raw = results.map(\.text).joined(separator: " ")
         return Self.sanitize(raw)
+    }
+
+    /// Read per dictation so editing the file takes effect on the next phrase.
+    /// Special tokens are dropped: the decoder builds its own control sequence
+    /// around this text, and a stray one there desynchronises it.
+    private func promptTokens() -> [Int]? {
+        let example = DictationExample()
+        guard !example.isEmpty, let tokenizer = pipeline?.tokenizer else { return nil }
+        let tokens = tokenizer.encode(text: " " + example.text)
+            .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+        return tokens.isEmpty ? nil : tokens
     }
 
     /// Strip Whisper's non-speech bracket tokens ([BLANK_AUDIO], [MUSIC],
