@@ -353,3 +353,50 @@ The 0.9 point has more consonant-band energy and transcribes worse: the extra
 energy is clipping distortion, not speech. This is the same reason digital
 normalisation did nothing — level is not information. A MacBook's built-in
 microphone defaulting to 13% gain is worth checking before blaming the model.
+
+## Autonomous round: seven more mechanisms, one survivor
+
+Measured on a fresh 8-utterance corpus recorded at corrected input gain, with
+ground truth taken from the speaker's own corrections rather than from any
+engine's output. Baseline (Parakeet TDT v3, stock config): **94.7% word
+accuracy, 62% technical-term recall, 0.31 s per utterance**.
+
+| mechanism | result |
+|---|---|
+| English token blocklist (`language: .portuguese`) | byte-identical output on every sample |
+| `melChunkContext: false` | identical |
+| `dualDecodeArbitration: true` | identical, 3x latency (0.28 s -> 0.91 s) |
+| Cohere engine | RTFx 2.79 -> 3.6 s for a 10 s utterance, 1.8 GB |
+| Paraformer / SenseVoice | Mandarin-only / no Portuguese |
+| Encoder precision | only `int8` and `int4` exist; already on the better one |
+| Resampler quality (default 64 vs max 127) | 0.00 dB in 1.5-3.5 kHz, +1.9 dB near Nyquist, transcription unchanged even at quality 0 |
+| Audio priming with prior utterance | fixes a plural, overflows the 15 s window, unreliable |
+
+### Vocabulary rescoring: works, and cannot be used
+
+`VocabularyRescorer` is the real mechanism — CTC re-reads the audio under each
+word's own timestamps, so a term wins only when the sound supports it. It
+recovered `constrangente` -> `constraint` from acoustics alone.
+
+It also produced `acontecer` -> `frontend`, `segundo` -> `mergeado`,
+`consideração` -> `constraint`. Net: **-15 WER points for +7 term points, and
+0.31 s -> 1.8 s**. Threshold sweeps (0.52 / 0.70 / 0.80 / 0.90, spotter rescue
+on and off) moved the numbers around non-monotonically without ever paying off.
+
+The cause is structural, not tuning. The rescorer's acoustic judge is
+`FluidInference/parakeet-ctc-110m-coreml`, whose model card declares
+`language: ["en"]`. It reads Portuguese audio through a model that has no
+Portuguese, so the correct word is not among the candidates and the English
+term wins by default. There is no multilingual CTC variant in the library.
+
+### What survived
+
+Input gain. Not a model, not a decoder setting: the microphone was at 13%.
+Corrected, the same corpus goes from 84.8% to 94.7% word accuracy, at zero
+latency and zero maintenance. It is now applied for the duration of each
+recording and restored afterwards.
+
+The dominant remaining error is an English technical term spoken in isolation
+(`pull requests` -> `por questões`, `merge` -> `método`). It disappears when the
+same term is spoken inside a full sentence, in both engines tested. Structure
+disambiguates; nothing else measured here does.
