@@ -85,10 +85,22 @@ actor WhisperKitTranscriber: Transcriber {
         } else {
             language = try? await pipeline.detectLangauge(audioArray: audio).language
         }
+        // Whisper reads 30 seconds at a time. Past that WhisperKit needs to be told
+        // to chunk, and told with what: given no strategy it takes the branch its
+        // own source calls "short enough to transcribe in a single window", which
+        // silently drops speech from the middle. A 2m21s voice note came back
+        // missing nine sentences that way, and missing different ones each run.
+        //
+        // Unconditional on purpose. WhisperKit consults the strategy only when the
+        // audio already exceeds one window, so a dictation press never reaches it —
+        // adding our own length check here would duplicate that test and drift from
+        // it. `.vad` splits on silence rather than mid-word, which is also why it
+        // beats a fixed 30-second cut.
         let results = try await pipeline.transcribe(
             audioArray: audio,
             decodeOptions: DecodingOptions(language: language,
-                                           promptTokens: language.flatMap { promptTokens(examples, $0) }))
+                                           promptTokens: language.flatMap { promptTokens(examples, $0) },
+                                           chunkingStrategy: .vad))
         let raw = results.map(\.text).joined(separator: " ")
         return Self.sanitize(raw)
     }
