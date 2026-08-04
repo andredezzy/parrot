@@ -50,32 +50,46 @@ Two plausible causes, both tested and both rejected:
 The registry shipped only turbo variants, whose decoder is pruned from 32 layers
 to 4. That pruning, not the runtime, is most of why Whisper looked weak here.
 
-| Model | Score | Chars |
+| Model | Score | Chars (cold / warm) |
 |---|---|---|
 | `large-v3-turbo` | 5/10 | 1321 / 2190 |
-| `medium` | 5/10 | 1276 / 1765 |
-| `large-v3` | **8/10 / 7/10** | 2275 / 1811 |
+| `medium` | 5/10 | 1765 / 1276 |
+| `large-v3` | 8/10 cold, **7/10 warm** | 2275 / 1811 |
 | Parakeet TDT v3 | 6/10 | 2107 |
+
+Read the warm column. The cold one includes ANE compilation and is not a
+transcription measurement.
 
 `whisper-medium` and `whisper-large-v3` are now registered.
 
-## The blocker: the same command does not give the same answer
+## The retracted blocker: cold runs are not warm runs
 
-Two columns of characters above, because every Whisper model tested returns a
-different amount of text on a second run of an identical command. `large-v3`
-gave 2275 characters then 1811. `medium` gave 1765 then 1276. VAD chunking
-reduced the loss without removing it.
+An earlier version of this note claimed the same command returned different
+amounts of text on repeat runs, and called it disqualifying. That was wrong, and
+the error is worth keeping written down.
 
-Nothing signals which run was short. A caller cannot tell a complete transcript
-from one missing a third of the audio, which is disqualifying for reading a
-conversation someone will act on — more than any accuracy score is.
+The pairs being compared were a first run against a second. Every first run
+included downloading the model, and CoreML compiles a model for the ANE on first
+use, so run one and run two were not the same machine state.
 
-faster-whisper did not vary across the runs made here.
+Run warm four times on the same real 2m16s note, `whisper-medium`:
 
-**This is unexplained.** Candidates not yet eliminated: VAD chunk boundaries
-moving between runs, the temperature-fallback path taking different branches, or
-concurrent workers racing. It wants isolating before any WhisperKit-based path is
-trusted for long audio, and it may be worth reporting upstream.
+| Run | Chars | md5 |
+|---|---|---|
+| 1 | 1901 | 609bc69a |
+| 2 | 1901 | 609bc69a |
+| 3 | 1901 | 609bc69a |
+| 4 | 1901 | 609bc69a |
+
+Identical. Three synthetic reproductions were also identical: clean 120s speech,
+the same degraded to 16kbps Opus with noise at 1.18x speed, and one alternating
+ten seconds clean with ten seconds degraded to force uneven decode times across
+chunks. Twelve runs, no variation.
+
+**Benchmark cold and warm separately, and never compare across them.** The first
+run of a model measures download plus ANE compilation; only the second onward
+measures transcription. The numbers in the model table above carry that flaw
+where two figures appear, and the second of each pair is the trustworthy one.
 
 ## Why beam search is not the answer people expect
 
@@ -107,5 +121,5 @@ since that time is CPU inference rather than Python overhead. whisper.cpp asks
 for a prebuilt XCFramework and a CMake step, which is the cost of leaving the
 single-SPM-package property behind.
 
-Neither is worth starting before the nondeterminism above is understood, since a
-second decoder would not explain the first one's behaviour.
+Neither is worth starting for a one-to-two term gap on a stable engine. What
+would justify one is wanting beam search itself, not repairing something broken.
