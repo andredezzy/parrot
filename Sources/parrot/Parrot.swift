@@ -9,7 +9,7 @@ struct Parrot: ParsableCommand {
         commandName: "parrot",
         abstract: "Minimal macOS dictation daemon. Hold Fn, speak, release.",
         version: parrotVersion,
-        subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self, Update.self],
+        subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Transcribe.self, Install.self, Update.self],
         defaultSubcommand: Run.self
     )
 }
@@ -189,7 +189,7 @@ struct Run: ParsableCommand {
                     Task {
                         let started = Date()
                         do {
-                            let text = try await transcriber.transcribe(samples)
+                            let text = try await transcriber.transcribe(samples, language: nil)
                             let elapsed = Date().timeIntervalSince(started)
                             FileHandle.standardError.write(Data(
                                 String(format: "→ %.2fs · %@\n", elapsed, text).utf8

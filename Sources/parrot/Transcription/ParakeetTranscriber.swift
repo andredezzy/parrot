@@ -32,7 +32,9 @@ actor ParakeetTranscriber: Transcriber {
         FileHandle.standardError.write(Data("✓ \(model.id) ready\n".utf8))
     }
 
-    func transcribe(_ audio: [Float]) async throws -> String {
+    /// `language` is accepted and dropped: Parakeet decodes multilingual audio
+    /// without being told which language, and has no prompt to steer.
+    func transcribe(_ audio: [Float], language _: String?) async throws -> String {
         if manager == nil { try await warmUp() }
         guard let manager else { throw TranscriberError.notLoaded }
 

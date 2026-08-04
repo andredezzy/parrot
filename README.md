@@ -43,10 +43,24 @@ parrot install --uninstall             # remove the LaunchAgent
 parrot doctor                          # check permissions + fn key setting
 parrot models list                     # list available models
 parrot models download <id>            # pre-download a model
+parrot transcribe a.ogg b.m4a          # transcribe files that already exist
+parrot transcribe note.ogg --language pt   # pin the decode instead of detecting it
 parrot --model whisper-large-v3-turbo-compressed  # better on technical terms, ~10x slower
 parrot --hotkey right-option           # change the push-to-talk key
 parrot --no-overlay                    # disable the bottom-of-screen pill
 ```
+
+`transcribe` exists because the model loaded for the `fn` key is the same one an
+agent needs to read a voice note somebody sent, and a second tool would download a
+second copy of weights already on disk. Pass every file in one call: loading costs
+seconds and decoding costs milliseconds, so twenty files in one invocation is one
+warm-up instead of twenty. Ogg/Opus decodes natively, so a WhatsApp note needs no
+ffmpeg detour.
+
+**Pass `--language` whenever you know it.** Unpinned, Whisper translates a
+Portuguese recording into English sentences rather than transcribing it. Dictation
+gets away without it because the dictation-examples file usually names one
+language; a file handed to the CLI carries no such hint.
 
 The menu bar carries the rest, because they are decisions you change while
 using it rather than when launching it:

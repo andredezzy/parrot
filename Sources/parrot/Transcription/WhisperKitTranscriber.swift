@@ -62,7 +62,7 @@ actor WhisperKitTranscriber: Transcriber {
         pipeline = nil
     }
 
-    func transcribe(_ audio: [Float]) async throws -> String {
+    func transcribe(_ audio: [Float], language requested: String?) async throws -> String {
         if pipeline == nil { try await warmUp() }
         guard let pipeline else { throw TranscriberError.notLoaded }
 
@@ -76,7 +76,9 @@ actor WhisperKitTranscriber: Transcriber {
         // answers are exact rather than guesses.
         let examples = DictationExamples()
         let language: String?
-        if model.languages.count == 1, model.languages[0] != "multi" {
+        if let requested {
+            language = requested
+        } else if model.languages.count == 1, model.languages[0] != "multi" {
             language = model.languages[0]
         } else if let sole = examples.soleLanguage {
             language = sole

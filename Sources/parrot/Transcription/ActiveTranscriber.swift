@@ -26,8 +26,8 @@ actor ActiveTranscriber {
         try await transcriber.warmUp(onProgress: onProgress)
     }
 
-    func transcribe(_ audio: [Float]) async throws -> String {
-        try await transcriber.transcribe(audio)
+    func transcribe(_ audio: [Float], language: String?) async throws -> String {
+        try await transcriber.transcribe(audio, language: language)
     }
 
     /// Loads `next` before dropping the current engine, so a download that fails

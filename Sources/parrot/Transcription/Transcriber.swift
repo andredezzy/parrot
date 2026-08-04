@@ -7,7 +7,10 @@ protocol Transcriber {
     /// so a switch that takes minutes can say so; loading afterwards is silent
     /// because neither engine reports it.
     func warmUp(onProgress: (@Sendable (Double) -> Void)?) async throws
-    func transcribe(_ audio: [Float]) async throws -> String
+    /// `language` pins the decode. Nil lets the engine decide, which is what
+    /// dictation wants and what a caller transcribing a known-language file
+    /// must not accept: unpinned, Whisper translates instead of transcribing.
+    func transcribe(_ audio: [Float], language: String?) async throws -> String
     /// Releases the loaded weights. Switching models calls this on the outgoing
     /// engine so two models never sit in memory at once.
     func unload() async
