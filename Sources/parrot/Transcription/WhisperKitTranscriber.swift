@@ -85,36 +85,59 @@ actor WhisperKitTranscriber: Transcriber {
         } else {
             language = try? await pipeline.detectLangauge(audioArray: audio).language
         }
-        // Whisper reads 30 seconds at a time. Past that WhisperKit needs to be told
-        // to chunk, and told with what: given no strategy it takes the branch its
-        // own source calls "short enough to transcribe in a single window", which
-        // silently drops speech from the middle. A 2m21s voice note came back
-        // missing nine sentences that way, and missing different ones each run.
+        // A dictation press fits one window, so it decodes in one pass and the
+        // example sentence is the only context there is to give.
+        guard audio.count > Constants.defaultWindowSamples else {
+            let opening = language.flatMap { examples.example(for: $0) }
+            return try await decode(audio, language: language, context: opening, using: pipeline)
+        }
+
+        // Longer than a window, so it has to be split, and who splits it decides
+        // how much the decoder knows. Handing the whole array to WhisperKit with
+        // `.vad` splits correctly but decodes every chunk blind: the library resets
+        // between them, and Whisper was trained expecting the previous text as a
+        // prefix. Measured against faster-whisper on the same audio, that missing
+        // context is 2.7 points of agreement — the second largest gap after beam
+        // search, and the only one that can be closed from here.
         //
-        // Unconditional on purpose. WhisperKit consults the strategy only when the
-        // audio already exceeds one window, so a dictation press never reaches it —
-        // adding our own length check here would duplicate that test and drift from
-        // it. `.vad` splits on silence rather than mid-word, which is also why it
-        // beats a fixed 30-second cut.
+        // So parrot splits with the same chunker and feeds each chunk what the one
+        // before it said.
+        let chunker = VADAudioChunker(vad: EnergyVAD())
+        let chunks = try await chunker.chunkAll(
+            audioArray: audio,
+            maxChunkLength: Constants.defaultWindowSamples,
+            decodeOptions: DecodingOptions(language: language))
+
+        var pieces: [String] = []
+        for chunk in chunks {
+            // The opening example seeds the first chunk; after that the audio's own
+            // words are the better prefix, being the actual subject and register.
+            let context = pieces.last ?? language.flatMap { examples.example(for: $0) }
+            let text = try await decode(chunk.audioSamples, language: language,
+                                        context: context, using: pipeline)
+            if !text.isEmpty { pieces.append(text) }
+        }
+        return pieces.joined(separator: " ")
+    }
+
+    private func decode(_ audio: [Float], language: String?, context: String?,
+                        using pipeline: WhisperKit) async throws -> String {
         let results = try await pipeline.transcribe(
             audioArray: audio,
             decodeOptions: DecodingOptions(language: language,
-                                           promptTokens: language.flatMap { promptTokens(examples, $0) },
-                                           chunkingStrategy: .vad))
-        let raw = results.map(\.text).joined(separator: " ")
-        return Self.sanitize(raw)
+                                           promptTokens: context.flatMap(promptTokens)))
+        return Self.sanitize(results.map { $0.text }.joined(separator: " "))
     }
 
-    /// Read per dictation so editing the file takes effect on the next phrase.
     /// Special tokens are dropped: the decoder builds its own control sequence
-    /// around this text, and a stray one there desynchronises it.
-    private func promptTokens(_ examples: DictationExamples, _ language: String) -> [Int]? {
-        guard let example = examples.example(for: language),
-              let tokenizer = pipeline?.tokenizer
-        else { return nil }
-        let tokens = tokenizer.encode(text: " " + example)
+    /// around this text, and a stray one there desynchronises it. Whisper's prompt
+    /// window is the last 224 tokens, so a long previous chunk is trimmed from the
+    /// front — the words nearest the new audio are the ones that inform it.
+    private func promptTokens(_ text: String) -> [Int]? {
+        guard let tokenizer = pipeline?.tokenizer else { return nil }
+        let tokens = tokenizer.encode(text: " " + text)
             .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
-        return tokens.isEmpty ? nil : tokens
+        return tokens.isEmpty ? nil : Array(tokens.suffix(224))
     }
 
     /// Strip Whisper's non-speech bracket tokens ([BLANK_AUDIO], [MUSIC],

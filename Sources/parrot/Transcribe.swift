@@ -71,6 +71,9 @@ struct Transcribe: ParsableCommand {
             } catch {
                 failure = error
             }
+            // Metal asserts its residency set is empty at teardown, so the engine is
+            // released here rather than left for process exit to deal with.
+            await transcriber.unload()
             done.signal()
         }
         done.wait()

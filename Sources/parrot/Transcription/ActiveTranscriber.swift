@@ -19,6 +19,7 @@ actor ActiveTranscriber {
         switch model.engine {
         case .whisperKit: WhisperKitTranscriber(model: model)
         case .parakeet: ParakeetTranscriber(model: model)
+        case .whisperCpp: WhisperCppTranscriber(model: model)
         }
     }
 
@@ -28,6 +29,13 @@ actor ActiveTranscriber {
 
     func transcribe(_ audio: [Float], language: String?) async throws -> String {
         try await transcriber.transcribe(audio, language: language)
+    }
+
+    /// Releases the engine's resources. Whisper on Metal holds a residency set that
+    /// it asserts is empty at process teardown, so a caller that finishes and exits
+    /// has to say so rather than let the context outlive it.
+    func unload() async {
+        await transcriber.unload()
     }
 
     /// Loads `next` before dropping the current engine, so a download that fails

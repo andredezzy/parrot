@@ -19,6 +19,10 @@ enum ModelWeights {
             return whisperKitBase.appending(path: "models/argmaxinc/whisperkit-coreml/\(engineID)")
         case .parakeet:
             return root.appending(path: "parakeet/\(engineID)")
+        case .whisperCpp:
+            // One .bin per model rather than a directory of CoreML parts, so the
+            // folder exists to give the purge something to delete per model.
+            return root.appending(path: "whispercpp/\(engineID)")
         }
     }
 

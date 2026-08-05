@@ -1,0 +1,5 @@
+module whispercpp {
+    header "whisper.h"
+    link "whispercpp"
+    export *
+}
