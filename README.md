@@ -52,7 +52,24 @@ parrot --no-overlay                    # disable the bottom-of-screen pill
 
 `transcribe` exists because the model loaded for the `fn` key is the same one an
 agent needs to read a voice note somebody sent, and a second tool would download a
-second copy of weights already on disk. Pass every file in one call: loading costs
+second copy of weights already on disk.
+
+For a recording that matters, reach for `whisper-medium-cpp`. It runs whisper.cpp
+on Metal with beam search, which keeps five candidate sentences alive and scores
+them whole where every other engine here commits to each word as it goes. Measured
+on three 120s Portuguese files against the text they were synthesised from:
+
+| | faster-whisper (beam-5, CPU) | parrot `whisper-medium-cpp` |
+|---|---|---|
+| clean speech | 94.2% · 91s | 94.2% · 26s |
+| degraded speech | 88.5% · 279s | 89.4% · 38s |
+| uneven levels | 68.9% · 115s | **83.7%** · 29s |
+
+The third row is levelling, not decoding. Whisper reads a quietly recorded passage
+as silence and returns nothing for it, while the sentences either side still read
+as sentences — so the transcript looks whole. parrot raises quiet windows to meet
+the loud ones first, which is worth 30 points on that file and nothing on one
+already even. Pass every file in one call: loading costs
 seconds and decoding costs milliseconds, so twenty files in one invocation is one
 warm-up instead of twenty. Ogg/Opus decodes natively, so a WhatsApp note needs no
 ffmpeg detour.
